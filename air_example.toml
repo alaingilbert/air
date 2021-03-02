@@ -6,8 +6,12 @@ root = "."
 tmp_dir = "tmp"
 
 [build]
+# List of commands to execute before building
+before = ["echo 'before build hook'"]
 # Just plain old shell command. You could use `make` as well.
 cmd = "go build -o ./tmp/main ."
+# List of commands to execute after building
+after = ["echo 'after build hook'"]
 # Binary file yields from `cmd`.
 bin = "tmp/main"
 # Customize binary.

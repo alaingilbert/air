@@ -301,8 +301,27 @@ func (e *Engine) buildRun() {
 	default:
 	}
 	var err error
+
+	// Run before build hooks
+	if err = e.beforeBuildHooks(); err != nil {
+		e.buildLog("failed to run before build hooks, error: %s", err.Error())
+		_ = e.writeBuildErrorLog(err.Error())
+		if e.config.Build.StopOnError {
+			return
+		}
+	}
+
 	if err = e.building(); err != nil {
 		e.buildLog("failed to build, error: %s", err.Error())
+		_ = e.writeBuildErrorLog(err.Error())
+		if e.config.Build.StopOnError {
+			return
+		}
+	}
+
+	// Run after build hooks
+	if err = e.afterBuildHooks(); err != nil {
+		e.buildLog("failed to run after build hooks, error: %s", err.Error())
 		_ = e.writeBuildErrorLog(err.Error())
 		if e.config.Build.StopOnError {
 			return
@@ -330,10 +349,8 @@ func (e *Engine) flushEvents() {
 	}
 }
 
-func (e *Engine) building() error {
-	var err error
-	e.buildLog("building...")
-	cmd, stdout, stderr, err := e.startCmd(e.config.Build.Cmd)
+func (e *Engine) runCmd(cmdStr string) error {
+	cmd, stdout, stderr, err := e.startCmd(cmdStr)
 	if err != nil {
 		return err
 	}
@@ -344,11 +361,29 @@ func (e *Engine) building() error {
 	_, _ = io.Copy(os.Stdout, stdout)
 	_, _ = io.Copy(os.Stderr, stderr)
 	// wait for building
-	err = cmd.Wait()
-	if err != nil {
-		return err
+	return cmd.Wait()
+}
+
+func (e *Engine) runCmds(cmds []string) error {
+	for _, cmdStr := range cmds {
+		if err := e.runCmd(cmdStr); err != nil {
+			return err
+		}
 	}
 	return nil
+}
+
+func (e *Engine) beforeBuildHooks() error {
+	return e.runCmds(e.config.Build.Before)
+}
+
+func (e *Engine) afterBuildHooks() error {
+	return e.runCmds(e.config.Build.After)
+}
+
+func (e *Engine) building() error {
+	e.buildLog("building...")
+	return e.runCmd(e.config.Build.Cmd)
 }
 
 func (e *Engine) runBin() error {
